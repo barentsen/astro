@@ -1,5 +1,5 @@
 ********
-Barentsen/Astro
+Barentsen/astro
 ********
 
 :Authors: Geert Barentsen
