@@ -16,8 +16,7 @@ siess_Mj = Rbf(siess.field("logMass"), siess.field("logAge"),
 siess_logR = Rbf(siess.field("logMass"), siess.field("logAge"),
                  siess.field("logRadius"), function="linear")
 
-""" Interpolation functions for the colour simulations """
-# Load the colours of emission-line objects due to Barentsen et al. (2011)
+""" Interpolation functions for the colour offsets from Paper I """
 sim = pyfits.getdata("simulated_iphas_colours_barentsen2011.fits", 1)
 # Functions for r'/Ha/i' offsets as a function of colour, extinction and EW
 r_offset = Rbf(sim.field("ri_unred"), sim.field("av"), sim.field("logew"),
@@ -33,23 +32,21 @@ rminHa_intrinsic = Rbf(sim.field("ri_unred")[intrinsic],
 
 
 def make_model(observed_sed, e_observed_sed):
-    """ The function make_model() returns all prior and likelihood objects """
+    """ This function returns all prior and likelihood objects """
 
-    # Mass prior.
+    # Mass prior following the Initial Mass Function due to Kroupa (2001)
     @pymc.stochastic()
     def logM(value=np.array([np.log10(0.5)]), a=np.log10(0.1), b=np.log10(7)):
 
         def logp(value, a, b):
-            # The mass should not fall outside the model limits (a,b).
             if value > b or value < a:
-                return -np.Inf
+                return -np.Inf  # Stay within the model limits (a,b).
             else:
-                # We adopt the Initial Mass Function due to Kroupa (2001).
                 mass = 10 ** value
                 if mass < 0.5:
-                    return np.log(mass ** -1.3)
+                    return np.log(mass ** -1.3)  # Kroupa (2001)
                 else:
-                    return np.log(0.5 * mass ** -2.3)
+                    return np.log(0.5 * mass ** -2.3)  # Kroupa (2001)
 
         def random(a, b):
             val = (b - a) * np.random.rand() + a
@@ -75,16 +72,16 @@ def make_model(observed_sed, e_observed_sed):
     # Intrinsic SED likelihood.
     @pymc.deterministic()
     def SED_intrinsic(logM=logM, logT=logT):
-        r = siess_Mr(logM, logT)
-        i = siess_Mi(logM, logT)
-        j = siess_Mj(logM, logT)
-        ha = r - rminHa_intrinsic(r - i)
+        r = siess_Mr(logM, logT)  # IPHAS r' as a function of (mass, age)
+        i = siess_Mi(logM, logT)  # IPHAS i
+        j = siess_Mj(logM, logT)  # 2MASS J
+        ha = r - rminHa_intrinsic(r - i)  # IPHAS H-alpha
         return np.array([r[0], ha[0], i[0], j[0]])
 
     # H-alpha excess luminosity likelihood.
     @pymc.deterministic()
     def logLacc(logM=logM, logT=logT, logMacc=logMacc, Rin=Rin):
-        logR = siess_logR(logM, logT)  # Radius as a function of (mass,age)
+        logR = siess_logR(logM, logT)  # Radius as a function of (mass, age)
         return 7.496 + logM + logMacc - logR + np.log10(1 - 1 / Rin)
     logLha = pymc.Normal("logLha", mu=(0.64 * logLacc - 2.12), tau=0.43 ** -2)
 
@@ -133,5 +130,4 @@ if __name__ == "__main__":
     # Demo: run the MCMC sampler and print the expectation value for log(Mass)
     M.sample(1000)
     samples_logM = M.trace("logM")[:]
-    print ("E[log Mass] = %.2f +/- %.2f" %
-           (np.mean(samples_logM), np.std(samples_logM)))
+    print "logM = %.2f +/-%.2f" % (np.mean(samples_logM), np.std(samples_logM))
