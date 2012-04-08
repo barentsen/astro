@@ -33,7 +33,7 @@ rminHa_intrinsic = Rbf(sim.field("ri_unred")[intrinsic],
 def make_model(observed_sed, e_observed_sed):
     """ This function returns all prior and likelihood objects """
 
-    # Mass prior following the Initial Mass Function due to Kroupa (2001)
+    # Prior: mass (Kroupa 2001)
     @pymc.stochastic()
     def logM(value=np.array([np.log10(0.5)]), a=np.log10(0.1), b=np.log10(7)):
 
@@ -51,24 +51,24 @@ def make_model(observed_sed, e_observed_sed):
             val = (b - a) * np.random.rand() + a
             return np.array([val])
 
-    # Age prior (logarithmic).
+    # Prior: age (uniform in the logarithm)
     logT = pymc.Uniform("logT", np.array([5]), np.array([8]))
 
-    # Accretion rate prior (logarithmic).
+    # Prior: accretion rate (uniform in the logarithm)
     logMacc = pymc.Uniform("logMacc", np.array([-15]), np.array([-2]))
 
-    # Disc truncation radius prior.
+    # Prior: disc truncation radius (Rin = 5 +\- 2 R, Gullbring et al. 1998)
     Rin = pymc.TruncatedNormal("Rin", mu=np.array([5.0]), tau=2.0 ** -2,
                                a=1.01, b=9e99)
 
-    # Distance prior due to Sung (1997).
+    # Prior: distance (d = 760 +\- 5 pc, Sung 1997)
     d = pymc.TruncatedNormal("d", mu=np.array([760.0]), tau=5.0 ** -2,
                              a=700, b=9e99)
 
-    # Extinction prior.
+    # Prior: extinction (logA0 = -0.27 +/- 0.46, Rebull et al. 2002)
     logA0 = pymc.Normal("logA0", mu=np.array([-0.27]), tau=0.46 ** -2)
 
-    # Intrinsic SED likelihood.
+    # Likelihood: intrinsic SED
     @pymc.deterministic()
     def SED_intrinsic(logM=logM, logT=logT):
         r = siess_Mr(logM, logT)  # IPHAS r' as a function of (mass, age)
@@ -77,14 +77,14 @@ def make_model(observed_sed, e_observed_sed):
         ha = r - rminHa_intrinsic(r - i)  # IPHAS H-alpha
         return np.array([r[0], ha[0], i[0], j[0]])
 
-    # H-alpha excess luminosity likelihood.
+    # Likelihood: H-alpha excess luminosity
     @pymc.deterministic()
     def logLacc(logM=logM, logT=logT, logMacc=logMacc, Rin=Rin):
         logR = siess_logR(logM, logT)  # Radius as a function of (mass, age)
         return 7.496 + logM + logMacc - logR + np.log10(1 - 1 / Rin)
     logLha = pymc.Normal("logLha", mu=(0.64 * logLacc - 2.12), tau=0.43 ** -2)
 
-    # H-alpha equivalent width (EW) likelihood.
+    # Likelihood: H-alpha equivalent width (EW).
     @pymc.deterministic()
     def logEW(logLha=logLha, SED_intrinsic=SED_intrinsic):
         Lha = 10 ** logLha  # Excess luminosity
@@ -92,7 +92,7 @@ def make_model(observed_sed, e_observed_sed):
         ew = -95.0 * Lha / Lha_con  # Equivalent width.
         return np.log10(-ew)
 
-    # Apparent SED likelihood.
+    # Likelihood: apparent SED
     @pymc.deterministic()
     def SED_apparent(d=d, logA0=logA0, SED_intr=SED_intrinsic, logEW=logEW):
         dismod = 5.0 * np.log10(d) - 5.0  # Distance modulus.
@@ -105,7 +105,7 @@ def make_model(observed_sed, e_observed_sed):
         j = SED_intr[3] + dismod + 0.276 * A0
         return np.array([r[0], ha[0], i[0], j[0]])
 
-    # Observed SED likelihood.
+    # Likelihood: observed SED
     @pymc.stochastic(observed=True)
     def SED_observed(value=observed_sed, SED_apparent=SED_apparent):
         e_calib = np.array([0.1, 0.1, 0.1, 0.1])  # Absolute uncertainty term
@@ -114,8 +114,7 @@ def make_model(observed_sed, e_observed_sed):
         logp = -D2 / 2.0
         return logp
 
-    # Return all model components.
-    return locals()
+    return locals()  # Return all model components defined above
 
 
 if __name__ == "__main__":
@@ -127,6 +126,6 @@ if __name__ == "__main__":
     mymodel = make_model(sed_observed, e_sed_observed)
     M = pymc.MCMC(mymodel)
     # Demo: run the MCMC sampler and print the expectation value for log(Mass)
-    M.sample(1000)
+    M.sample(50000)
     samples_logM = M.trace("logM")[:]
     print "logM = %.2f +/-%.2f" % (np.mean(samples_logM), np.std(samples_logM))
