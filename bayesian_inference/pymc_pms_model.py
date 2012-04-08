@@ -3,10 +3,9 @@ from scipy.interpolate.rbf import Rbf
 import pyfits
 import pymc
 
-""" Construct the interpolation functions for the evolutionary model """
-# Load the evolutionary model grid due to Siess et al. (2000)
-siess = pyfits.getdata("siess_isochrones.fits", 1)
-# Use linear Radial Basis Functions to construct the functions.
+""" Interpolation functions for intrinsic magnitudes """
+siess = pyfits.getdata("siess_isochrones.fits", 1)  # Siess et al. (2000)
+# Interpolation is performed using linear Radial Basis Functions
 siess_Mr = Rbf(siess.field("logMass"), siess.field("logAge"),
                siess.field("Mr_iphas"), function="linear")
 siess_Mi = Rbf(siess.field("logMass"), siess.field("logAge"),
@@ -16,8 +15,8 @@ siess_Mj = Rbf(siess.field("logMass"), siess.field("logAge"),
 siess_logR = Rbf(siess.field("logMass"), siess.field("logAge"),
                  siess.field("logRadius"), function="linear")
 
-""" Interpolation functions for the colour offsets from Paper I """
-sim = pyfits.getdata("simulated_iphas_colours_barentsen2011.fits", 1)
+""" Functions for magnitude offsets due to emission & exctinction """
+sim = pyfits.getdata("simulated_iphas_colours_barentsen2011.fits", 1)  # PaperI
 # Functions for r'/Ha/i' offsets as a function of colour, extinction and EW
 r_offset = Rbf(sim.field("ri_unred"), sim.field("av"), sim.field("logew"),
                sim.field("d_r"), function="linear")
